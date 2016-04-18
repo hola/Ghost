@@ -1,6 +1,6 @@
 {
   "name": "ghost",
-  "version": "0.7.9-hola.1",
+  "version": "0.7.9-hola.2",
   "description": "Just a blogging platform.",
   "author": "Ghost Foundation",
   "homepage": "http://ghost.org",
@@ -18,7 +18,6 @@
   "license": "MIT",
   "main": "./core/index",
   "scripts": {
-    "preinstall": "node -e \"require('./core/server/utils/startup-check.js').nodeVersion()\"",
     "start": "node index",
     "test": "grunt validate --verbose"
   },
