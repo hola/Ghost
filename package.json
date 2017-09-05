@@ -1,6 +1,6 @@
 {
   "name": "ghost",
-  "version": "1.8.3-hola.0",
+  "version": "1.8.3-hola.1",
   "description": "The professional publishing platform",
   "author": "Ghost Foundation",
   "homepage": "http://ghost.org",
@@ -24,7 +24,7 @@
     "init": "yarn global add knex-migrator ember-cli grunt-cli && yarn install && grunt symlink && grunt init || true"
   },
   "engines": {
-    "node": "^4.5.0 || ^6.9.0"
+    "node": "^4.5.0 || ^6.9.0 || ^8.4.0"
   },
   "dependencies": {
     "amperize": "0.3.4",
@@ -94,7 +94,7 @@
     "xml": "1.0.1"
   },
   "optionalDependencies": {
-    "sqlite3": "3.1.8"
+    "sqlite3": "3.1.9"
   },
   "devDependencies": {
     "grunt": "1.0.1",
