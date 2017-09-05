@@ -1,20 +1,15 @@
-/*globals describe, before, beforeEach, afterEach, it*/
-var should         = require('should'),
-    sinon          = require('sinon'),
-    _              = require('lodash'),
-    hbs            = require('express-hbs'),
-    utils          = require('./utils'),
+var should = require('should'), // jshint ignore:line
+    sinon = require('sinon'),
+    _ = require('lodash'),
 
 // Stuff we are testing
-    handlebars     = hbs.handlebars,
-    helpers        = require('../../../server/helpers');
+    helpers = require.main.require('core/server/helpers'),
+    handlebars = require.main.require('core/server/themes/engine').handlebars,
+
+    sandbox = sinon.sandbox.create();
 
 describe('{{#foreach}} helper', function () {
-    var options, context, _this, resultData, sandbox = sinon.sandbox.create();
-
-    before(function () {
-        utils.loadHelpers();
-    });
+    var options, context, _this, resultData;
 
     afterEach(function () {
         sandbox.restore();
@@ -40,10 +35,6 @@ describe('{{#foreach}} helper', function () {
         function runTest(self, context, options) {
             helpers.foreach.call(self, context, options);
         }
-
-        it('is loaded', function () {
-            should.exist(handlebars.helpers.foreach);
-        });
 
         it('should not populate data if no private data is supplied (array)', function () {
             delete options.data;
@@ -260,14 +251,25 @@ describe('{{#foreach}} helper', function () {
     });
 
     describe('(compile)', function () {
-        var objectHash = {posts: {
-                first: {title: 'first'}, second: {title: 'second'}, third: {title: 'third'}, fourth: {title: 'fourth'}, fifth: {title: 'fifth'}
-            }},
-            arrayHash = {posts: [
-                {title: 'first'}, {title: 'second'}, {title: 'third'}, {title: 'fourth'}, {title: 'fifth'}
-            ]},
+        var objectHash = {
+                posts: {
+                    first: {title: 'first'},
+                    second: {title: 'second'},
+                    third: {title: 'third'},
+                    fourth: {title: 'fourth'},
+                    fifth: {title: 'fifth'}
+                }
+            },
+            arrayHash = {
+                posts: [
+                    {title: 'first'}, {title: 'second'}, {title: 'third'}, {title: 'fourth'}, {title: 'fifth'}
+                ]
+            },
             arrayHash2 = {goodbyes: [{text: 'goodbye'}, {text: 'Goodbye'}, {text: 'GOODBYE'}], world: 'world'},
-            objectHash2 = {goodbyes: {foo: {text: 'goodbye'}, bar: {text: 'Goodbye'}, baz: {text: 'GOODBYE'}}, world: 'world'};
+            objectHash2 = {
+                goodbyes: {foo: {text: 'goodbye'}, bar: {text: 'Goodbye'}, baz: {text: 'GOODBYE'}},
+                world: 'world'
+            };
 
         function shouldCompileToExpected(templateString, hash, expected) {
             var template = handlebars.compile(templateString),
@@ -275,6 +277,10 @@ describe('{{#foreach}} helper', function () {
 
             result.should.eql(expected);
         }
+
+        before(function () {
+            handlebars.registerHelper('foreach', helpers.foreach);
+        });
 
         /** Many of these are copied direct from the handlebars spec */
         it('object and @key', function () {
@@ -412,7 +418,7 @@ describe('{{#foreach}} helper', function () {
 
         it('foreach with from 2, to 5 and limit 3', function () {
             var templateString = '<ul>{{#foreach posts from="2" to="5" limit="3"}}<li>{{title}}</li>{{else}}not this{{/foreach}}</ul>',
-                expected = '<ul><li>second</li><li>third</li><li>fourth</li><li>fifth</li></ul>';
+                expected = '<ul><li>second</li><li>third</li><li>fourth</li></ul>';
 
             shouldCompileToExpected(templateString, arrayHash, expected);
             shouldCompileToExpected(templateString, objectHash, expected);
@@ -425,13 +431,157 @@ describe('{{#foreach}} helper', function () {
             shouldCompileToExpected(templateString, arrayHash, expected);
             shouldCompileToExpected(templateString, objectHash, expected);
         });
-
         it('@last in foreach with from 2 and to 4', function () {
             var templateString = '<ul>{{#foreach posts from="2" to="4"}}{{#if @last}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
                 expected = '<ul><li>fourth</li></ul>';
 
             shouldCompileToExpected(templateString, arrayHash, expected);
             shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@last in foreach with from 4', function () {
+            var templateString = '<ul>{{#foreach posts from="4"}}{{#if @last}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>fifth</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@first in foreach with from 4', function () {
+            var templateString = '<ul>{{#foreach posts from="4"}}{{#if @first}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>fourth</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@last in foreach with to 4', function () {
+            var templateString = '<ul>{{#foreach posts to="4"}}{{#if @last}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>fourth</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@first in foreach with to 4', function () {
+            var templateString = '<ul>{{#foreach posts to="4"}}{{#if @first}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>first</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@last in foreach with from 4 and limit 3', function () {
+            var templateString = '<ul>{{#foreach posts from="4" limit="3"}}{{#if @last}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>fifth</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@first in foreach with from 4 and limit 3', function () {
+            var templateString = '<ul>{{#foreach posts from="4" limit="3"}}{{#if @first}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>fourth</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@last in foreach with to 4 and limit 3', function () {
+            var templateString = '<ul>{{#foreach posts to="4" limit="3"}}{{#if @last}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>third</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        it('@first in foreach with to 4 and limit 3', function () {
+            var templateString = '<ul>{{#foreach posts to="4" limit="3"}}{{#if @first}}<li>{{title}}</li>{{/if}}{{/foreach}}</ul>',
+                expected = '<ul><li>first</li></ul>';
+
+            shouldCompileToExpected(templateString, arrayHash, expected);
+            shouldCompileToExpected(templateString, objectHash, expected);
+        });
+
+        describe('Internal Tags', function () {
+            var tagArrayHash = {
+                    tags: [
+                        {name: 'first', visibility: 'public'},
+                        {name: 'second', visibility: 'public'},
+                        {name: 'third', visibility: 'internal'},
+                        {name: 'fourth', visibility: 'public'},
+                        {name: 'fifth'}
+                    ]
+                },
+                tagObjectHash = {
+                    tags: {
+                        first: {name: 'first', visibility: 'public'},
+                        second: {name: 'second', visibility: 'public'},
+                        third: {name: 'third', visibility: 'internal'},
+                        fourth: {name: 'fourth', visibility: 'public'},
+                        fifth: {name: 'fifth'}
+                    }
+                };
+
+            it('will not output internal tags', function () {
+                var templateString = '<ul>{{#foreach tags}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul><li>0 first</li><li>1 second</li><li>2 fourth</li><li>3 fifth</li></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
+
+            it('should still correctly apply from & limit tags', function () {
+                var templateString = '<ul>{{#foreach tags from="2" limit="2"}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul><li>1 second</li><li>2 fourth</li></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
+
+            it('should output all tags with visibility="all"', function () {
+                var templateString = '<ul>{{#foreach tags visibility="all"}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul><li>0 first</li><li>1 second</li><li>2 third</li><li>3 fourth</li><li>4 fifth</li></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
+
+            it('should output all tags with visibility property set with visibility="public,internal"', function () {
+                var templateString = '<ul>{{#foreach tags visibility="public,internal"}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul><li>0 first</li><li>1 second</li><li>2 third</li><li>3 fourth</li></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
+
+            it('should output all tags with visibility="internal"', function () {
+                var templateString = '<ul>{{#foreach tags visibility="internal"}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul><li>0 third</li></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
+
+            it('should output nothing if all tags are internal', function () {
+                var tagArrayHash = {
+                        tags: [
+                            {name: 'first', visibility: 'internal'},
+                            {name: 'second', visibility: 'internal'}
+                        ]
+                    },
+                    tagObjectHash = {
+                        tags: {
+                            first: {name: 'first', visibility: 'internal'},
+                            second: {name: 'second', visibility: 'internal'}
+                        }
+                    },
+                    templateString = '<ul>{{#foreach tags}}<li>{{@index}} {{name}}</li>{{/foreach}}</ul>',
+                    expected = '<ul></ul>';
+
+                shouldCompileToExpected(templateString, tagObjectHash, expected);
+                shouldCompileToExpected(templateString, tagArrayHash, expected);
+            });
         });
     });
 });

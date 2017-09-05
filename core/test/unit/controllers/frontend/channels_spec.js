@@ -1,27 +1,21 @@
-/*globals describe, before, beforeEach, afterEach, it*/
-var should   = require('should'),
-    sinon    = require('sinon'),
-    Promise  = require('bluebird'),
-    _        = require('lodash'),
+var should = require('should'),
+    sinon = require('sinon'),
+    Promise = require('bluebird'),
+    _ = require('lodash'),
 
-// Stuff we are testing
+    // Stuff we are testing
     channels = require('../../../../server/controllers/frontend/channels'),
-    api      = require('../../../../server/api'),
-
-    configUtils = require('../../../utils/configUtils'),
-
+    api = require('../../../../server/api'),
+    themes = require('../../../../server/themes'),
     sandbox = sinon.sandbox.create();
 
 describe('Channels', function () {
-    var channelRouter, req, res;
+    var channelRouter, req, res, hasTemplateStub, themeConfigStub;
 
     // Initialise 'req' with the bare minimum properties
     function setupRequest() {
         req = {
-            method: 'get',
-            app: {
-                get: sandbox.stub().returns('casper')
-            }
+            method: 'get'
         };
     }
 
@@ -35,13 +29,21 @@ describe('Channels', function () {
     // Run a test which should result in a render
     function testChannelRender(props, assertions, done) {
         res = {
-            redirect: sandbox.spy()
+            redirect: sandbox.spy(),
+            locals: {
+                // Fake the ghost locals middleware, which doesn't happen when calling a channel router directly
+                relativeUrl: props.url
+            }
         };
 
-        res.render = function (view) {
-            assertions(view);
-            res.redirect.called.should.be.false();
-            done();
+        res.render = function (view, data) {
+            try {
+                assertions.call(this, view, data);
+                res.redirect.called.should.be.false();
+                done();
+            } catch (err) {
+                done(err);
+            }
         };
 
         _.extend(req, props);
@@ -53,13 +55,21 @@ describe('Channels', function () {
     function testChannelRedirect(props, assertions, done) {
         res = {
             render: sandbox.spy(),
-            set: sandbox.spy()
+            set: sandbox.spy(),
+            locals: {
+                // Fake the ghost locals middleware, which doesn't happen when calling a channel router directly
+                relativeUrl: props.url
+            }
         };
 
         res.redirect = function (status, path) {
-            assertions(status, path);
-            res.render.called.should.be.false();
-            done();
+            try {
+                assertions.call(this, status, path);
+                res.render.called.should.be.false();
+                done();
+            } catch (err) {
+                done(err);
+            }
         };
 
         _.extend(req, props);
@@ -72,16 +82,24 @@ describe('Channels', function () {
         res = {
             redirect: sandbox.spy(),
             render: sandbox.spy(),
-            set: sandbox.spy()
+            set: sandbox.spy(),
+            locals: {
+                // Fake the ghost locals middleware, which doesn't happen when calling a channel router directly
+                relativeUrl: props.url
+            }
         };
 
         _.extend(req, props);
 
         channelRouter(req, res, function (empty) {
-            assertions(empty);
-            res.redirect.called.should.be.false();
-            res.render.called.should.be.false();
-            done();
+            try {
+                assertions.call(this, empty);
+                res.redirect.called.should.be.false();
+                res.render.called.should.be.false();
+                done();
+            } catch (err) {
+                done(err);
+            }
         });
     }
 
@@ -101,13 +119,25 @@ describe('Channels', function () {
         }, done);
     }
 
+    // Ensure hasTemplate returns values
+    function setupActiveTheme() {
+        hasTemplateStub = sandbox.stub().returns(false);
+        hasTemplateStub.withArgs('index').returns(true);
+
+        themeConfigStub = sandbox.stub().withArgs('posts_per_page').returns(5);
+
+        sandbox.stub(themes, 'getActive').returns({
+            hasTemplate: hasTemplateStub,
+            config: themeConfigStub
+        });
+    }
+
     before(function () {
         // We don't overwrite this, so only do it once
         channelRouter = channels.router();
     });
 
     afterEach(function () {
-        configUtils.restore();
         sandbox.restore();
     });
 
@@ -121,13 +151,6 @@ describe('Channels', function () {
             });
         }
 
-        // Return basic paths for the activeTheme
-        function setupActiveTheme() {
-            configUtils.set({paths: {availableThemes: {casper: {
-                'index.hbs': '/content/themes/casper/index.hbs'
-            }}}});
-        }
-
         beforeEach(function () {
             // Setup Env for tests
             setupPostsAPIStub();
@@ -139,19 +162,26 @@ describe('Channels', function () {
             testChannelRender({url: '/'}, function (view) {
                 should.exist(view);
                 view.should.eql('index');
+
+                should.exist(this.locals);
+                this.locals.should.have.property('context').which.is.an.Array();
+                this.locals.context.should.containEql('index');
+
                 postAPIStub.calledOnce.should.be.true();
             }, done);
         });
 
         it('should render the first page of the index channel using home.hbs if available', function (done) {
-            configUtils.set({paths: {availableThemes: {casper: {
-                'index.hbs': '/content/themes/casper/index.hbs',
-                'home.hbs': '/content/themes/casper/home.hbs'
-            }}}});
+            hasTemplateStub.withArgs('home').returns(true);
 
             testChannelRender({url: '/'}, function (view) {
                 should.exist(view);
                 view.should.eql('home');
+
+                should.exist(this.locals);
+                this.locals.should.have.property('context').which.is.an.Array();
+                this.locals.context.should.containEql('index');
+
                 postAPIStub.calledOnce.should.be.true();
             }, done);
         });
@@ -161,19 +191,24 @@ describe('Channels', function () {
                 testChannelRender({url: '/page/2/'}, function (view) {
                     should.exist(view);
                     view.should.eql('index');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('index');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
 
             it('should use index.hbs for second page even if home.hbs is available', function (done) {
-                configUtils.set({paths: {availableThemes: {casper: {
-                    'index.hbs': '/content/themes/casper/index.hbs',
-                    'home.hbs': '/content/themes/casper/home.hbs'
-                }}}});
-
                 testChannelRender({url: '/page/2/'}, function (view) {
                     should.exist(view);
                     view.should.eql('index');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('index');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
@@ -182,6 +217,11 @@ describe('Channels', function () {
                 testChannelRender({url: '/page/3/'}, function (view) {
                     should.exist(view);
                     view.should.eql('index');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('index');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
@@ -256,13 +296,6 @@ describe('Channels', function () {
             });
         }
 
-        // Return basic paths for the activeTheme
-        function setupActiveTheme() {
-            configUtils.set({paths: {availableThemes: {casper: {
-                'index.hbs': '/content/themes/casper/index.hbs'
-            }}}});
-        }
-
         beforeEach(function () {
             // Setup Env for tests
             setupAPIStubs();
@@ -274,35 +307,44 @@ describe('Channels', function () {
             testChannelRender({url: '/tag/my-tag/'}, function (view) {
                 should.exist(view);
                 view.should.eql('index');
+
+                should.exist(this.locals);
+                this.locals.should.have.property('context').which.is.an.Array();
+                this.locals.context.should.containEql('tag');
+
                 postAPIStub.calledOnce.should.be.true();
                 tagAPIStub.calledOnce.should.be.true();
             }, done);
         });
 
         it('should render the first page of the tag channel using tag.hbs by default', function (done) {
-            configUtils.set({paths: {availableThemes: {casper: {
-                'index.hbs': '/content/themes/casper/index.hbs',
-                'tag.hbs': '/content/themes/casper/tag.hbs'
-            }}}});
+            hasTemplateStub.withArgs('tag').returns(true);
 
             testChannelRender({url: '/tag/my-tag/'}, function (view) {
                 should.exist(view);
                 view.should.eql('tag');
+
+                should.exist(this.locals);
+                this.locals.should.have.property('context').which.is.an.Array();
+                this.locals.context.should.containEql('tag');
+
                 postAPIStub.calledOnce.should.be.true();
                 tagAPIStub.calledOnce.should.be.true();
             }, done);
         });
 
         it('should render the first page of the tag channel using tag-:slug.hbs if available', function (done) {
-            configUtils.set({paths: {availableThemes: {casper: {
-                'index.hbs': '/content/themes/casper/index.hbs',
-                'tag.hbs': '/content/themes/casper/tag.hbs',
-                'tag-my-tag.hbs': '/content/themes/casper/tag-my-tag.hbs'
-            }}}});
+            hasTemplateStub.withArgs('tag').returns(true);
+            hasTemplateStub.withArgs('tag-my-tag').returns(true);
 
             testChannelRender({url: '/tag/my-tag/'}, function (view) {
                 should.exist(view);
                 view.should.eql('tag-my-tag');
+
+                should.exist(this.locals);
+                this.locals.should.have.property('context').which.is.an.Array();
+                this.locals.context.should.containEql('tag');
+
                 postAPIStub.calledOnce.should.be.true();
                 tagAPIStub.calledOnce.should.be.true();
             }, done);
@@ -318,28 +360,32 @@ describe('Channels', function () {
             });
 
             it('should use tag.hbs to render the tag channel if available', function (done) {
-                configUtils.set({paths: {availableThemes: {casper: {
-                    'index.hbs': '/content/themes/casper/index.hbs',
-                    'tag.hbs': '/content/themes/casper/tag.hbs'
-                }}}});
+                hasTemplateStub.withArgs('tag').returns(true);
 
                 testChannelRender({url: '/tag/my-tag/page/2/'}, function (view) {
                     should.exist(view);
                     view.should.eql('tag');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('tag');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
 
             it('should use tag-:slug.hbs to render the tag channel if available', function (done) {
-                configUtils.set({paths: {availableThemes: {casper: {
-                    'index.hbs': '/content/themes/casper/index.hbs',
-                    'tag.hbs': '/content/themes/casper/tag.hbs',
-                    'tag-my-tag.hbs': '/content/themes/casper/tag-my-tag.hbs'
-                }}}});
+                hasTemplateStub.withArgs('tag').returns(true);
+                hasTemplateStub.withArgs('tag-my-tag').returns(true);
 
                 testChannelRender({url: '/tag/my-tag/page/2/'}, function (view) {
                     should.exist(view);
                     view.should.eql('tag-my-tag');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('tag');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
@@ -356,6 +402,11 @@ describe('Channels', function () {
                 testChannelRender({url: '/tag/my-tag/page/3/'}, function (view) {
                     should.exist(view);
                     view.should.eql('index');
+
+                    should.exist(this.locals);
+                    this.locals.should.have.property('context').which.is.an.Array();
+                    this.locals.context.should.containEql('tag');
+
                     postAPIStub.calledOnce.should.be.true();
                 }, done);
             });
@@ -412,7 +463,7 @@ describe('Channels', function () {
         describe('Edit', function () {
             it('should redirect /edit/ to ghost admin', function (done) {
                 testChannelRedirect({url: '/tag/my-tag/edit/'}, function (path) {
-                    path.should.eql('/ghost/settings/tags/my-tag/');
+                    path.should.eql('/ghost/#/settings/tags/my-tag/');
                     postAPIStub.called.should.be.false();
                 }, done);
             });
